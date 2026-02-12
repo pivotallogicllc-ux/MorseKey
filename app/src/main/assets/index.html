@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <style>
+        :root {
+            /* DEFAULT SKIN (NEON DARK) */
+            --spacing-unit: min(2vh, 2vw);
+            --color-bg: #0b0e11;
+            --color-card: #15191c;
+            --color-main: #00FF00; /* Bright Green */
+            --color-train: #FFFF00; /* Yellow */
+            --color-sec: #0088FF; /* Blue */
+            --color-msg: #AA00FF; /* Purple */
+            --color-warn: #FF9900; /* Orange */
+            --color-err: #FF0000; /* Red */
+            --color-text-faint: rgba(255, 255, 255, 0.3);
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+        }
+
+        /* SKIN: DAY MODE (High Contrast) - NO YELLOW TEXT */
+        body.skin-day {
+            --color-bg: #FFFFFF;
+            --color-card: #F0F2F5;
+            --color-main: #000000; /* Black text */
+            --color-train: #D32F2F; /* DARK RED (Replaces Yellow for visibility) */
+            --color-sec: #0044CC; /* Dark Blue */
+            --color-msg: #6200EA; /* Deep Purple */
+            --color-warn: #E65100; /* Dark Orange */
+            --color-err: #B00020; /* High Contrast Red */
+            --color-text-faint: rgba(0, 0, 0, 0.4);
+        }
+
+        /* SKIN: CALM MODE (Low Sensitivity) */
+        body.skin-calm {
+            --color-bg: #262329;
+            --color-card: #2e2a33;
+            --color-main: #E0B0FF; /* Soft Mauve */
+            --color-train: #F0E68C; /* Khaki */
+            --color-sec: #87CEEB; /* Sky Blue */
+            --color-msg: #DDA0DD; /* Plum */
+            --color-warn: #FFB74D; /* Pastel Orange */
+            --color-err: #FF8A80; /* Pastel Red */
+            --color-text-faint: rgba(224, 176, 255, 0.3);
+        }
+
+        body {
+            background-color: var(--color-bg);
+            color: var(--color-main);
+            font-family: var(--font-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            padding: max(env(safe-area-inset-top), 20px) var(--spacing-unit) var(--spacing-unit) var(--spacing-unit);
+            box-sizing: border-box;
+            user-select: none;
+            overflow: hidden;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #main-view, #train-view { display: flex; flex-direction: column; width: 100%; height: 100%; flex-grow: 1; }
+        #train-view { display: none; }
+
+        h1 {
+            margin: 0 0 1vh 0;
+            text-align: center;
+            font-size: clamp(16px, 2.5vh, 22px);
+            letter-spacing: 1px;
+            color: var(--color-main);
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .status-bar-container {
+            height: 5vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 1vh;
+            gap: 5px;
+        }
+
+        #search-bar, #message-bar {
+            flex-grow: 1;
+            text-align: center;
+            font-weight: 600;
+            display: none;
+            background: var(--color-card);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            line-height: 4vh;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 15px;
+        }
+        #search-bar { color: var(--color-sec); border: 1px solid rgba(0, 136, 255, 0.3); }
+        #message-bar { color: var(--color-msg); border: 1px solid rgba(170, 0, 255, 0.3); }
+
+        #display {
+            flex-grow: 1;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+            border-radius: 16px;
+            color: var(--color-main);
+            font-size: clamp(18px, 4vw, 26px);
+            padding: 20px;
+            overflow-y: auto;
+            margin-bottom: 1vh;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            font-family: var(--font-main);
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        /* KEY REFERENCE GRID */
+        #key-grid {
+            display: grid;
+            grid-template-rows: repeat(12, 1fr);
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-flow: column;
+            height: 100%; width: 100%;
+            column-gap: 10px;
+            padding-top: 5px;
+            font-size: clamp(14px, 2.2vh, 24px);
+        }
+
+        .key-entry {
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+        }
+
+        .key-char {
+            color: var(--color-main);
+            width: 1.5em;
+            font-weight: 700;
+        }
+
+        .key-code {
+            color: var(--color-train);
+            font-family: var(--font-mono);
+            font-weight: 900;
+            font-size: 1.2em;
+            opacity: 1;
+            background: rgba(125, 125, 125, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 2px;
+        }
+
+        /* TRAINING UI */
+        #train-header { color: var(--color-train); }
+        #target-display {
+            height: 30vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(255, 255, 0, 0.05);
+            border-radius: 20px;
+            border: 1px solid var(--color-train);
+            margin-bottom: 1vh;
+            gap: 1vh;
+            color: var(--color-train);
+        }
+        #train-letter { font-size: clamp(60px, 12vh, 100px); font-weight: bold; line-height: 1; color: inherit; }
+        #train-hint { font-family: var(--font-mono); font-size: clamp(24px, 5vh, 40px); opacity: 0.9; letter-spacing: 5px; font-weight: bold; color: inherit; }
+        #train-feedback { height: 8vh; text-align: center; font-size: 1.2rem; color: var(--color-main); display: flex; justify-content: center; align-items: center; }
+
+        .cursor {
+            display: none; width: 10px; height: 1.2em; background-color: var(--color-main);
+            animation: blink 1s step-end infinite; vertical-align: text-bottom;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        #btn-container {
+            height: 45vh; flex-shrink: 0; display: flex; justify-content: center; align-items: center;
+            width: 100%; position: relative; padding: 1vh 0; overflow: visible;
+        }
+
+        .corner-btn {
+            position: absolute; top: 10px; width: 72px; height: 72px; border-radius: 50%;
+            background: var(--color-card); border: 1px solid rgba(255,255,255,0.1);
+            color: var(--color-text-faint); font-weight: 700; font-size: 0.8rem;
+            display: flex; justify-content: center; align-items: center; z-index: 20;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px); box-shadow: 0 4px 10px rgba(0,0,0,0.2); padding: 0 !important;
+        }
+        .corner-btn:active, .corner-btn.active { background-color: var(--color-sec); color: #FFF; transform: scale(0.95); border-color: transparent; }
+        #help-btn { left: 15px; }
+        #key-btn-corner { right: 15px; }
+
+        #key-btn {
+            width: 75vw; height: 75vw; max-width: 38vh; max-height: 38vh; aspect-ratio: 1/1;
+            border-radius: 50%; background-color: var(--color-card);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4), inset 0 2px 5px rgba(255,255,255,0.05);
+            outline: none; -webkit-tap-highlight-color: transparent; position: relative;
+            transition: transform 0.05s, background-color 0.05s; z-index: 10;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #key-btn:active { transform: scale(0.98); }
+
+        #center-arrows {
+            position: absolute;
+            top: 50%; left: 50%; transform: translate(-50%,-50%);
+            color: var(--color-text-faint); font-size: 2rem; line-height: 0.8; text-align: center;
+            pointer-events: none;
+        }
+
+        .gesture-label {
+            position: absolute;
+            font-size: 0.8rem; font-weight: 700;
+            color: var(--color-text-faint); pointer-events: none; text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        #g-up { top: 15%; left: 50%; transform: translateX(-50%); }
+        #g-down { bottom: 15%; left: 50%; transform: translateX(-50%); }
+        #g-left { left: 8%; top: 50%; transform: translateY(-50%); }
+        #g-right { right: 8%; top: 50%; transform: translateY(-50%); }
+
+        #key-btn.pressing { background-color: rgba(0, 255, 0, 0.1); border-color: var(--color-main); }
+        #key-btn.space { background-color: rgba(255, 255, 255, 0.1); border-color: var(--color-main); }
+        #key-btn.delete { background-color: rgba(255, 0, 0, 0.1); border-color: var(--color-err); }
+        #key-btn.contact { background-color: rgba(0, 136, 255, 0.1); border-color: var(--color-sec); }
+        #key-btn.tutorial { background-color: rgba(255, 255, 0, 0.1); border-color: var(--color-train); }
+        #key-btn.message { background-color: rgba(170, 0, 255, 0.1); border-color: var(--color-msg); }
+        #key-btn.disabled { background-color: #111; opacity: 0.5; }
+
+        #status { margin-top: 10px; color: var(--color-text-faint); font-size: 0.8rem; height: 2vh; text-align: center; flex-shrink: 0; }
+        #debug { position: absolute; bottom: 5px; right: 5px; font-size: 10px; color: var(--color-text-faint); font-family: var(--font-mono); }
+
+        .action-btn {
+            background: transparent; color: var(--color-text-faint);
+            border: 1px solid var(--color-text-faint);
+            padding: 5px 10px;
+            font-weight: bold; font-size: 0.8rem; border-radius: 15px; margin: 0 2px;
+        }
+        #exit-train-btn { color: var(--color-train); border-color: var(--color-train); }
+        .voice-off { text-decoration: line-through; opacity: 0.5; }
+    </style>
+</head>
+<body class="skin-calm">
+
+<div id="main-view">
+    <h1>MORSE KEY</h1>
+    <div class="status-bar-container">
+        <button id="voice-btn-main" class="action-btn" onclick="toggleVoice()">VOICE</button>
+        <div id="search-bar">SEARCH: </div>
+        <div id="message-bar" onclick="exitAllModes()">TO: </div>
+    </div>
+    <div id="display"><span id="content">INITIALIZING...</span><span class="cursor"></span></div>
+</div>
+
+<div id="train-view">
+    <h1 id="train-header">TRAINING</h1>
+    <div class="status-bar-container">
+        <button id="set-start-btn" class="action-btn" onclick="toggleDefaultStart()">SET START</button>
+        <button id="exit-train-btn" class="action-btn" onclick="exitTraining()">EXIT</button>
+        <button id="voice-btn-train" class="action-btn" onclick="toggleVoice()">VOICE</button>
+        <button class="action-btn" onclick="nextLesson()">SKIP</button>
+        <button class="action-btn" onclick="cycleSkin()">SKIN</button>
+    </div>
+    <div id="target-display">
+        <div id="train-letter">?</div>
+        <div id="train-hint"></div>
+    </div>
+    <div id="train-feedback">COPY THE SIGNAL</div>
+</div>
+
+<div id="btn-container">
+    <button id="help-btn" class="corner-btn" onclick="toggleInstructions()">HELP</button>
+    <button id="key-btn-corner" class="corner-btn" onclick="toggleKeyReference()">KEY</button>
+
+    <button id="key-btn">
+        <div id="center-arrows">▲<br>&nbsp;&nbsp;<br></div>
+        <span id="g-up" class="gesture-label"></span>
+        <span id="g-left" class="gesture-label"></span>
+        <span id="g-right" class="gesture-label"></span>
+        <span id="g-down" class="gesture-label"></span>
+    </button>
+</div>
+
+<div id="status">TAP=Code | HOLD=Space/Search</div>
+<div id="debug">t: 150ms</div>
+
+<script>
+    /*
+     * Copyright (c) 2026 Morse Key. All Rights Reserved.
+     * Unauthorized reproduction, distribution, or modification is prohibited.
+     */
+
+    const contentSpan = document.getElementById('content');
+    const searchBar = document.getElementById('search-bar');
+    const messageBar = document.getElementById('message-bar');
+    const keyBtn = document.getElementById('key-btn');
+    const helpBtn = document.getElementById('help-btn');
+    const keyCornerBtn = document.getElementById('key-btn-corner');
+    const status = document.getElementById('status');
+    const debug = document.getElementById('debug');
+    const trainHeader = document.getElementById('train-header');
+    const cursor = document.querySelector('.cursor');
+
+    const display = document.getElementById('display');
+    const gUp = document.getElementById('g-up');
+    const gDown = document.getElementById('g-down');
+    const gLeft = document.getElementById('g-left');
+    const gRight = document.getElementById('g-right');
+
+    const mainView = document.getElementById('main-view');
+    const trainView = document.getElementById('train-view');
+    const targetDisplay = document.getElementById('target-display');
+    const trainLetter = document.getElementById('train-letter');
+    const trainHint = document.getElementById('train-hint');
+    const trainFeedback = document.getElementById('train-feedback');
+
+    const voiceBtnMain = document.getElementById('voice-btn-main');
+    const voiceBtnTrain = document.getElementById('voice-btn-train');
+    const setStartBtn = document.getElementById('set-start-btn');
+
+    const MORSE_MAP = {
+        '.-': 'A', '-...': 'B', '-.-.': 'C', '-..': 'D', '.': 'E', '..-.': 'F',
+        '--.': 'G', '....': 'H', '..': 'I', '.---': 'J', '-.-': 'K', '.-..': 'L',
+        '--': 'M', '-.': 'N', '---': 'O', '.--.': 'P', '--.-': 'Q', '.-.': 'R',
+        '...': 'S', '-': 'T', '..-': 'U', '...-': 'V', '.--': 'W', '-..-': 'X',
+        '-.--': 'Y', '--..': 'Z',
+        '-----':'0', '.----': '1', '..---': '2', '...--': '3', '....-': '4', '.....': '5',
+        '-....': '6', '--...': '7', '---..': '8', '----.': '9'
+    };
+
+    function getCodeFromChar(char) { return Object.keys(MORSE_MAP).find(key => MORSE_MAP[key] === char); }
+
+    function getWordCode(word) {
+        if(!word) return "";
+        return word.split('').map(c => getCodeFromChar(c) || "?").join('  ');
+    }
+
+    function getContactNumber(contact) {
+        if (contact && contact.numbers && contact.numbers.length > 0) {
+            return contact.numbers[0].number;
+        }
+        return null;
+    }
+
+    function getContactLabel(contact) {
+        if (contact && contact.numbers && contact.numbers.length > 0) {
+            return contact.numbers[0].label;
+        }
+        return "";
+    }
+
+    let isVoiceEnabled = true;
+
+    function toggleVoice() {
+        isVoiceEnabled = !isVoiceEnabled;
+        const btns = [voiceBtnMain, voiceBtnTrain];
+        btns.forEach(b => {
+            if(isVoiceEnabled) {
+                b.classList.remove('voice-off');
+                b.style.opacity = "1";
+            } else {
+                b.classList.add('voice-off');
+                b.style.opacity = "0.5";
+            }
+        });
+        if(isVoiceEnabled) speak("Voice On");
+    }
+
+    function speak(text) {
+        if (isVoiceEnabled && window.Android) {
+            window.Android.speak(text);
+        }
+    }
+
+    function announce(text) {
+        speak(text);
+    }
+
+    const ALPHABET = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+    const NUMBERS = ['0','1','2','3','4','5','6','7','8','9'];
+
+    const LESSONS = [
+        { name: "LETTERS", data: ALPHABET },
+        { name: "NUMBERS", data: NUMBERS },
+        { name: "BASICS", data: ['YES', 'NO', 'HI', 'OK', 'THX', 'BYE'] },
+        { name: "COMMON WORDS", data: ['THE', 'AND', 'FOR', 'YOU', 'WITH', 'HAVE'] },
+        { name: "VOWELS", data: ['A', 'E', 'I', 'O', 'U'] },
+        { name: "DOTS", data: ['E', 'I', 'S', 'H', '5'] },
+        { name: "DASHES", data: ['T', 'M', 'O', '0'] },
+        { name: "SOS", data: ['S', 'O', 'H', 'E', 'L', 'P'] }
+    ];
+
+    let lessonIndex = 0;
+    let currentLessonSet = LESSONS[0].data;
+
+    const SKINS = ['', 'skin-day', 'skin-calm'];
+    let skinIndex = 2;
+
+    const QUESTION_WORDS = ["WHO", "WHAT", "WHERE", "WHEN", "WHY", "HOW", "WHICH", "IS", "ARE", "WAS", "WERE", "DO", "DOES", "DID", "CAN", "COULD", "WOULD", "SHOULD", "WILL", "MAY", "MIGHT", "AM", "HAVE", "HAS", "HAD"];
+
+    let tUnit = 150;
+    let startTime = 0;
+    let colorLoop = null;
+    let currentSequence = "";
+    let letterTimeout = null;
+
+    let isContactMode = false;
+    let isMessageMode = false;
+    let isTutorialMode = false;
+    let isKeyMode = false;
+    let isHelpMode = false;
+
+    let currentTargetChar = "";
+    let currentTargetWord = "";
+    let wordIndex = 0;
+
+    let allContacts = [];
+    let filteredContacts = [];
+    let searchQuery = "";
+    let targetContact = null;
+
+    let touchStartX = 0; let touchStartY = 0; let touchEndX = 0; let touchEndY = 0;
+    let isSwipeAction = false;
+    let lastSpaceTime = 0; const SPACE_TIMEOUT = 3000;
+
+    let savedDraft = ""; let savedTargetContact = null; let wasInMessageMode = false;
+    let savedSearchQuery = "";
+
+    let nextRepeatTime = 0; let isRepeatingDelete = false;
+
+    let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let oscillator = null;
+    let isKeyPressed = false;
+    const VOLUME = 0.1;
+    let playbackTimeouts = [];
+    let tutorialAudioLoop = false;
+
+    window.onload = function() {
+        let savedSkin = localStorage.getItem("skinIndex");
+        if (savedSkin !== null) {
+            skinIndex = parseInt(savedSkin);
+            document.body.classList.remove('skin-day', 'skin-calm');
+            if (SKINS[skinIndex] !== '') {
+                document.body.classList.add(SKINS[skinIndex]);
+            }
+        }
+
+        setTimeout(() => {
+            let defaultMode = localStorage.getItem("defaultMode");
+            if (defaultMode === "contacts") {
+                setStartBtn.textContent = "SET START: APP";
+                getContacts();
+            } else {
+                setStartBtn.textContent = "SET START: TRAIN";
+                startTraining();
+            }
+        }, 300);
+    };
+
+    function toggleDefaultStart() {
+        let current = localStorage.getItem("defaultMode");
+        if (current === "contacts") {
+            localStorage.setItem("defaultMode", "training");
+            setStartBtn.textContent = "SET START: TRAIN";
+            announce("Default start set to Training");
+        } else {
+            localStorage.setItem("defaultMode", "contacts");
+            setStartBtn.textContent = "SET START: APP";
+            announce("Default start set to Contacts");
+        }
+    }
+
+    function getThresholds() {
+        return { dash: tUnit * 1.5, manualSpace: tUnit * 4.0, del: tUnit * 7.0, contact: tUnit * 12.0 };
+    }
+
+    function updateText(newText) {
+        contentSpan.textContent = newText;
+        display.scrollTop = display.scrollHeight;
+    }
+
+    function updateGestureUI() {
+        if (isMessageMode && !isKeyMode && !isHelpMode) {
+            cursor.style.display = "inline-block";
+        } else {
+            cursor.style.display = "none";
+        }
+
+        gUp.textContent = ""; gDown.textContent = ""; gLeft.textContent = ""; gRight.textContent = "";
+        gUp.style.color = "var(--color-text-faint)";
+        gDown.style.color = "var(--color-text-faint)";
+        gLeft.style.color = "var(--color-text-faint)";
+        gRight.style.color = "var(--color-text-faint)";
+
+        if (isTutorialMode) {
+            gDown.textContent = "EXIT"; gDown.style.color = "var(--color-err)";
+            gRight.textContent = "MODE"; gRight.style.color = "var(--color-train)";
+            return;
+        }
+
+        if (isKeyMode || isHelpMode) { return; }
+
+        if (isMessageMode) {
+            gUp.textContent = "CALL"; gDown.textContent = "(.?)"; gLeft.textContent = "BACK"; gRight.textContent = "SEND";
+            gUp.style.color = "var(--color-sec)"; gDown.style.color = "var(--color-warn)";
+            gRight.style.color = "var(--color-main)"; gLeft.style.color = "var(--color-err)";
+        } else if (isContactMode) {
+            if (searchQuery === "") {
+                gDown.textContent = "TRAIN"; gDown.style.color = "var(--color-train)";
+            } else {
+                gLeft.textContent = "BACK";
+                gLeft.style.color = "var(--color-err)";
+                if (filteredContacts.length === 1) {
+                    gUp.textContent = "CALL"; gDown.textContent = "TEXT";
+                    gUp.style.color = "var(--color-sec)"; gDown.style.color = "var(--color-msg)";
+                }
+            }
+        }
+    }
+
+    function cycleSkin() {
+        skinIndex = (skinIndex + 1) % SKINS.length;
+        document.body.classList.remove('skin-day', 'skin-calm');
+        if (SKINS[skinIndex] !== '') {
+            document.body.classList.add(SKINS[skinIndex]);
+        }
+
+        localStorage.setItem("skinIndex", skinIndex);
+
+        const names = ["NEON", "DAY", "CALM"];
+        if(isTutorialMode) trainFeedback.textContent = "THEME: " + names[skinIndex];
+
+        updateGestureUI();
+        if(isTutorialMode) targetDisplay.style.color = "var(--color-train)";
+    }
+
+    function restoreState() {
+        if (wasInMessageMode) {
+            isMessageMode = true;
+            targetContact = savedTargetContact;
+            updateText(savedDraft);
+            searchBar.style.display = "none";
+            messageBar.style.display = "block";
+
+            let nameDisplay = targetContact.name;
+            messageBar.textContent = "TO: " + nameDisplay;
+            status.textContent = "TEXTING: " + nameDisplay + " (SWIPE RIGHT TO SEND)";
+
+            announce("Texting " + targetContact.name);
+            updateGestureUI();
+        } else {
+            isContactMode = true;
+            isMessageMode = false;
+            searchQuery = savedSearchQuery || "";
+            searchBar.style.display = "block";
+            messageBar.style.display = "none";
+            updateSearchDisplay();
+            status.textContent = "TAP=Code | HOLD=Space/Search";
+            wasInMessageMode = false;
+
+            announce("Contact Search");
+            updateGestureUI();
+        }
+    }
+
+    function saveState() {
+        if (isMessageMode) {
+            wasInMessageMode = true; savedDraft = contentSpan.textContent; savedTargetContact = targetContact;
+        } else {
+            wasInMessageMode = false;
+        }
+        if (isContactMode) { savedSearchQuery = searchQuery; }
+    }
+
+    function speakKey(char) {
+        if(!window.Android) return;
+        const code = getCodeFromChar(char);
+        const phonetic = code.split('').map(c => c === '.' ? 'Dot' : 'Dash').join(' ');
+        window.Android.vibrate(50);
+        speak(char + ". " + phonetic);
+    }
+
+    function toggleKeyReference() {
+        if (isKeyMode) {
+            isKeyMode = false; keyCornerBtn.classList.remove("active"); restoreState();
+        } else {
+            if (isHelpMode) toggleInstructions();
+            saveState(); isContactMode = false; isMessageMode = false; isKeyMode = true;
+            keyCornerBtn.classList.add("active");
+
+            announce("Key Reference");
+
+            const FULL_KEY = [...ALPHABET, ...NUMBERS];
+            let html = '<div id="key-grid">';
+
+            FULL_KEY.forEach(char => {
+                html += `<div class="key-entry" onclick="speakKey('${char}')">
+                            <span class="key-char">${char}</span>
+                            <span class="key-code">${getCodeFromChar(char)}</span>
+                         </div>`;
+            });
+
+            html += '</div>';
+            contentSpan.innerHTML = html;
+            updateGestureUI();
+        }
+    }
+
+    function toggleInstructions() {
+        if (isHelpMode) {
+            isHelpMode = false; helpBtn.classList.remove("active"); restoreState();
+        } else {
+            if (isKeyMode) toggleKeyReference();
+            saveState(); isContactMode = false; isMessageMode = false; isHelpMode = true;
+            helpBtn.classList.add("active");
+
+            announce("Help Menu");
+
+            updateText("--- ACCESS KEY HELP ---\n\n[BASICS]\nTAP: Dot (.)\nHOLD: Dash (-)\nWHITE: Space\nRED: Delete\nBLUE: Search/Contact\n\n[KEY REFERENCE]\nTap any code in the list to hear it spoken.\n\n[GESTURES]\n- Contact List -\n Swipe UP: Call\n Swipe DOWN: Train\n Swipe DOWN: Text (If Selected)\n\n- Message Mode -\n Swipe RIGHT: Send Text\n Swipe LEFT: Back\n Swipe UP: Call\n Swipe DOWN: Smart Punctuation (. or ?)\n\n- Training Mode -\n Swipe DOWN: Exit\n Swipe RIGHT: Next Lesson");
+
+            display.scrollTop = 0;
+            updateGestureUI();
+        }
+    }
+
+    function startTraining() {
+        saveState(); isContactMode = false; isMessageMode = false; isKeyMode = false; isHelpMode = false;
+        isTutorialMode = true;
+        mainView.style.display = "none"; trainView.style.display = "flex";
+        trainHeader.textContent = "TRAINING (" + LESSONS[lessonIndex].name + ")";
+        status.textContent = "TRAINING MODE";
+        helpBtn.style.display = 'none'; keyCornerBtn.style.display = 'none';
+
+        let current = localStorage.getItem("defaultMode");
+        setStartBtn.textContent = (current === "contacts") ? "SET START: APP" : "SET START: TRAIN";
+
+        announce("Training " + LESSONS[lessonIndex].name);
+
+        updateGestureUI();
+        nextLesson();
+    }
+
+    function stopPlayback() {
+        tutorialAudioLoop = false;
+        if (oscillator) { try { oscillator.stop(); oscillator.disconnect(); } catch(e){} oscillator = null; }
+        keyBtn.className = "";
+        playbackTimeouts.forEach(id => clearTimeout(id));
+        playbackTimeouts = [];
+    }
+
+    function toggleTrainingMode() {
+        stopPlayback();
+        lessonIndex = (lessonIndex + 1) % LESSONS.length;
+        currentLessonSet = LESSONS[lessonIndex].data;
+        trainHeader.textContent = "TRAINING (" + LESSONS[lessonIndex].name + ")";
+
+        announce("Training " + LESSONS[lessonIndex].name);
+
+        updateGestureUI();
+        nextLesson();
+    }
+
+    function exitTraining() {
+        stopPlayback();
+        isTutorialMode = false;
+        trainView.style.display = "none"; mainView.style.display = "flex";
+        helpBtn.style.display = 'flex'; keyCornerBtn.style.display = 'flex';
+
+        // FIX: Load contacts if missing
+        if (allContacts.length === 0) {
+            getContacts();
+        } else {
+            restoreState();
+        }
+    }
+
+    function startMessageMode(contact) {
+        targetContact = contact;
+        isContactMode = false;
+        isMessageMode = true;
+
+        searchQuery = "";
+        searchBar.style.display = "none";
+        messageBar.style.display = "block";
+
+        let nameDisplay = contact.name;
+        messageBar.textContent = "TO: " + nameDisplay;
+        updateText("");
+        status.textContent = "TEXTING: " + nameDisplay + " (SWIPE RIGHT TO SEND)";
+
+        if(window.Android) window.Android.vibrate(100);
+        announce("Texting " + contact.name);
+
+        gRight.textContent = "SEND";
+        gRight.style.color = "var(--color-main)";
+        gDown.textContent = "(.?)";
+        gDown.style.color = "var(--color-warn)";
+        gUp.textContent = "CALL";
+        gUp.style.color = "var(--color-sec)";
+        gLeft.textContent = "BACK";
+        gLeft.style.color = "var(--color-err)";
+        cursor.style.display = "inline-block";
+
+        if(window.Android) {
+           try {
+               let num = getContactNumber(contact);
+               if (num) {
+                   let lastMsg = window.Android.getLastMessage(num);
+                   if (lastMsg && lastMsg !== "No recent messages.") {
+                       announce("Last message: " + lastMsg);
+                       status.textContent = "THEM: " + lastMsg.substring(0, 20) + "...";
+                   }
+               }
+           } catch(e) {
+               console.log("Error fetching message: " + e);
+           }
+        }
+
+        updateGestureUI();
+    }
+
+    function exitAllModes() {
+        isContactMode = false; isMessageMode = false; isKeyMode = false; isHelpMode = false;
+        searchQuery = ""; targetContact = null;
+        savedSearchQuery = "";
+        helpBtn.classList.remove("active"); keyCornerBtn.classList.remove("active");
+        searchBar.style.display = "none"; messageBar.style.display = "none";
+        updateText("INITIALIZING..."); getContacts();
+    }
+
+    function handleGesture() {
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+        const THRESHOLD = 50;
+
+        if (isHelpMode) {
+            if (diffY > THRESHOLD) display.scrollTop += 300;
+            else if (diffY < -THRESHOLD) display.scrollTop -= 300;
+            return;
+        }
+
+        if (isTutorialMode) {
+            if (diffY > THRESHOLD && Math.abs(diffX) < Math.abs(diffY)) { isSwipeAction = true; exitTraining(); }
+            else if (diffX > THRESHOLD && Math.abs(diffX) > Math.abs(diffY)) { isSwipeAction = true; toggleTrainingMode(); }
+            return;
+        }
+
+        if (isKeyMode) return;
+
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX > THRESHOLD) {
+                if (isMessageMode && targetContact) { isSwipeAction = true; sendMessage(); }
+                else if (isContactMode && filteredContacts.length > 0) { isSwipeAction = true; startMessageMode(filteredContacts[0]); }
+            } else if (diffX < -THRESHOLD) {
+                if (isMessageMode) { isSwipeAction = true; exitAllModes(); }
+                else if (isContactMode) { isSwipeAction = true; exitAllModes(); }
+            }
+        } else {
+            if (diffY < -THRESHOLD) {
+                if (isContactMode && filteredContacts.length === 1) {
+                    isSwipeAction = true;
+                    const target = filteredContacts[0];
+                    const num = getContactNumber(target);
+
+                    status.textContent = "CALLING " + target.name + "...";
+                    if(window.Android && num) window.Android.makeCall(num);
+                    else if (!num) status.textContent = "NO NUMBER FOUND";
+
+                    setTimeout(exitAllModes, 1000);
+                } else if (isMessageMode) {
+                    isSwipeAction = true; status.textContent = "CALLING " + targetContact.name + "...";
+                    const num = getContactNumber(targetContact);
+
+                    if(window.Android && num) window.Android.makeCall(num);
+                    else if (!num) status.textContent = "NO NUMBER FOUND";
+
+                    setTimeout(exitAllModes, 1000);
+                }
+            } else if (diffY > THRESHOLD) {
+                if (isContactMode) {
+                    if (searchQuery === "") { isSwipeAction = true; startTraining(); }
+                    else if (filteredContacts.length === 1) { isSwipeAction = true; startMessageMode(filteredContacts[0]); }
+                } else if (isMessageMode) {
+                    isSwipeAction = true;
+                    let text = contentSpan.textContent;
+                    if (!text.endsWith(". ") && !text.endsWith("? ")) {
+                        if (!text.endsWith(" ")) text += " ";
+                        performSmartPunctuation(text);
+                    }
+                }
+            }
+        }
+    }
+
+    function nextLesson() {
+        const item = currentLessonSet[Math.floor(Math.random() * currentLessonSet.length)];
+        currentTargetWord = item;
+        wordIndex = 0;
+
+        let code = "";
+        if (item.length > 1) {
+            code = getWordCode(item);
+            currentTargetChar = item[0];
+        } else {
+            currentTargetChar = item;
+            code = getCodeFromChar(item);
+        }
+
+        trainLetter.innerHTML = item;
+        trainHint.textContent = code;
+        targetDisplay.style.color = "var(--color-train)";
+        trainFeedback.textContent = "LISTEN...";
+
+        setTimeout(() => playMorseCode(code), 500);
+    }
+
+    function renderWordProgress() {
+        let completed = currentTargetWord.substring(0, wordIndex);
+        let pending = currentTargetWord.substring(wordIndex);
+        trainLetter.innerHTML = `<span style="color:var(--color-main)">${completed}</span>${pending}`;
+    }
+
+    function checkTutorialInput(letter) {
+        let target = "";
+        let isWordMode = currentTargetWord.length > 1;
+
+        if (isWordMode) target = currentTargetWord[wordIndex];
+        else target = currentTargetChar;
+
+        if (letter === target) {
+            speak(letter);
+            if (window.Android) window.Android.vibrate(50);
+
+            if (isWordMode) {
+                wordIndex++;
+                renderWordProgress();
+                if (wordIndex >= currentTargetWord.length) {
+                    targetDisplay.style.color = "var(--color-main)";
+                    trainFeedback.textContent = "CORRECT!";
+                    setTimeout(nextLesson, 800);
+                } else {
+                    trainFeedback.textContent = "NEXT: " + currentTargetWord[wordIndex];
+                }
+            } else {
+                targetDisplay.style.color = "var(--color-main)";
+                trainFeedback.textContent = "CORRECT!";
+                setTimeout(nextLesson, 800);
+            }
+        } else {
+            targetDisplay.style.color = "var(--color-err)";
+            trainFeedback.textContent = "TRY AGAIN.";
+            if(window.Android) window.Android.vibrate(500);
+
+            speak("Try again");
+
+            setTimeout(() => {
+                targetDisplay.style.color = "var(--color-train)";
+            }, 1000);
+        }
+    }
+
+    function updateColorLoop() {
+        if (isSwipeAction) return;
+        if (isKeyMode || isHelpMode) { keyBtn.className = "disabled"; return; }
+
+        const now = Date.now();
+        const duration = now - startTime;
+        const th = getThresholds();
+
+        if (isTutorialMode) { return; }
+
+        keyBtn.className = "tutorial";
+        status.textContent = "BUFFER: " + currentSequence;
+
+        if (isRepeatingDelete || duration > th.del) {
+            if (oscillator && audioCtx.state === 'running') {
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+            }
+
+            keyBtn.className = "delete";
+            status.textContent = "DELETING...";
+
+            if (now > nextRepeatTime) {
+                performDelete();
+                nextRepeatTime = now + 150;
+                isRepeatingDelete = true;
+            }
+            return;
+        }
+        else if (oscillator && audioCtx.state === 'running') {
+            oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        }
+
+        if (isMessageMode) {
+            if (duration > th.manualSpace) {
+                keyBtn.className = "space"; status.textContent = "RELEASE FOR SPACE";
+            } else {
+                keyBtn.className = "message";
+                status.textContent = duration > th.dash ? "DASH (-)" : "DOT (.)";
+            }
+            return;
+        }
+
+        if (duration > th.contact) {
+            if (isContactMode) keyBtn.className = "disabled";
+            else { keyBtn.className = "contact"; status.textContent = "RELEASE TO SEARCH"; }
+        } else if (duration > th.manualSpace) {
+            keyBtn.className = "space"; status.textContent = "RELEASE FOR SPACE";
+        } else {
+            keyBtn.className = "pressing";
+            status.textContent = duration > th.dash ? "DASH (-)" : "DOT (.)";
+        }
+    }
+
+    function startTone(e) {
+        if(e.type === 'touchstart') { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; }
+        if (isKeyMode || isHelpMode) return;
+        if (e.type === 'keyboard') { isSwipeAction = false; } else { isSwipeAction = false; }
+
+        if (window.Android) window.Android.vibrate(50);
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        if (isTutorialMode) stopPlayback();
+
+        oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(VOLUME, audioCtx.currentTime + 0.015);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+        oscillator.start();
+
+        clearTimeout(letterTimeout);
+        startTime = Date.now();
+        nextRepeatTime = startTime + getThresholds().del;
+        isRepeatingDelete = false;
+
+        if (isTutorialMode) keyBtn.className = "tutorial";
+        else if (isMessageMode) keyBtn.className = "message";
+        else keyBtn.className = "pressing";
+
+        colorLoop = setInterval(updateColorLoop, 50);
+    }
+
+    function stopTone(e) {
+        clearInterval(colorLoop); keyBtn.className = "";
+        if (oscillator) { try{oscillator.stop(); oscillator=null;}catch(e){}}
+
+        if (isKeyMode) return;
+        if(e.type === 'touchend') {
+            touchEndX = e.changedTouches[0].clientX; touchEndY = e.changedTouches[0].clientY;
+            handleGesture();
+        }
+
+        if (isSwipeAction) return;
+        if (isHelpMode) return;
+
+        const pressDuration = Date.now() - startTime;
+        const th = getThresholds();
+
+        if (isRepeatingDelete) { isRepeatingDelete = false; return; }
+
+        if (isTutorialMode) {
+            const char = pressDuration > th.dash ? "-" : ".";
+            currentSequence += char;
+            status.textContent = "BUFFER: " + currentSequence;
+            trainFeedback.textContent = "INPUT: " + currentSequence;
+            letterTimeout = setTimeout(commitBuffer, tUnit * 3.0);
+            return;
+        }
+
+        if (pressDuration > th.contact && !isMessageMode) {
+            if (!isContactMode) getContacts();
+        } else if (pressDuration > th.del) {
+            performDelete();
+        } else if (pressDuration > th.manualSpace) {
+            performSpace();
+        } else {
+            const char = pressDuration > th.dash ? "-" : ".";
+            if (isContactMode || isMessageMode) {
+                currentSequence += char;
+                status.textContent = "BUFFER: " + currentSequence;
+                letterTimeout = setTimeout(commitBuffer, tUnit * 3.0);
+            } else {
+                updateText(contentSpan.textContent + char);
+                adaptSpeed(pressDuration > th.dash ? pressDuration/3 : pressDuration);
+            }
+        }
+    }
+
+    function renderContactList(list) {
+        let str = "";
+        if (list.length === 0) str = "NO MATCHES";
+        else list.forEach((c, i) => {
+            const p = i===0 ? ">> " : "   ";
+            str += p + c.name + "\n";
+        });
+        contentSpan.textContent = str; display.scrollTop = 0;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && !e.repeat && !isKeyPressed) {
+            e.preventDefault(); isKeyPressed = true; startTone({ type: 'keyboard' });
+        }
+    });
+    document.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') {
+            e.preventDefault(); isKeyPressed = false; stopTone({ type: 'keyboard' });
+        }
+    });
+
+    function performSpace() {
+        const now = Date.now();
+        if (isMessageMode || (!isContactMode && !isTutorialMode)) {
+            let text = contentSpan.textContent;
+            if (text.endsWith(". ") || text.endsWith("? ")) { status.textContent = "[ALREADY SPACED]"; return; }
+
+            if (text.endsWith(" ") && (now - lastSpaceTime < SPACE_TIMEOUT)) {
+                performSmartPunctuation(text);
+            } else {
+                updateText(text + " ");
+                status.textContent = "[MANUAL SPACE]";
+                if (window.Android) window.Android.vibrate(50);
+                lastSpaceTime = now;
+            }
+        }
+    }
+
+    function performSmartPunctuation(text) {
+        text = text.trimEnd();
+        let lastPunctuation = Math.max(text.lastIndexOf('.'), text.lastIndexOf('?'), text.lastIndexOf('!'));
+        let currentSentence = text.substring(lastPunctuation + 1).trim();
+        let firstWord = currentSentence.split(" ")[0].toUpperCase();
+
+        let punctuation = ".";
+        if (QUESTION_WORDS.includes(firstWord)) punctuation = "?";
+
+        updateText(text + punctuation + " ");
+        status.textContent = "[SMART PUNCTUATION]";
+        if (window.Android) window.Android.vibrate(100);
+        lastSpaceTime = 0;
+    }
+
+    function performDelete() {
+        if (isContactMode) { searchQuery = searchQuery.slice(0, -1); updateSearchDisplay(); }
+        else if (isMessageMode || (!isTutorialMode && !isContactMode)) {
+            updateText(contentSpan.textContent.slice(0, -1));
+        }
+        if (window.Android) window.Android.vibrate(30);
+    }
+
+    function commitBuffer() {
+        const letterCode = MORSE_MAP[currentSequence];
+        currentSequence = "";
+
+        if (letterCode) {
+            if (isTutorialMode) {
+                checkTutorialInput(letterCode);
+            }
+            else if (isContactMode) {
+                speak(letterCode);
+                searchQuery += letterCode; updateSearchDisplay();
+            }
+            else if (isMessageMode) {
+                speak(letterCode);
+                let text = contentSpan.textContent;
+                let shouldCap = false;
+                if (text.length === 0) shouldCap = true;
+                else {
+                    let trimmed = text.trimEnd();
+                    if (trimmed.length === 0) shouldCap = true;
+                    else {
+                        let lastChar = trimmed.slice(-1);
+                        if (['.', '?', '!'].includes(lastChar)) shouldCap = true;
+                    }
+                }
+                let finalLetter = shouldCap ? letterCode : letterCode.toLowerCase();
+                updateText(text + finalLetter);
+            }
+        } else {
+            status.textContent = "?";
+            if(isTutorialMode) trainFeedback.textContent = "UNKNOWN CODE";
+        }
+    }
+
+    function sendMessage() {
+        const msg = contentSpan.textContent.trim();
+        if (msg === "") { status.textContent = "CANNOT SEND EMPTY"; return; }
+
+        if(window.Android) {
+            speak("Sending message: " + msg);
+
+            let num = getContactNumber(targetContact);
+            if(num) {
+                window.Android.sendText(num, msg);
+                window.Android.vibrate(200);
+                status.textContent = "SENDING...";
+                updateText("ME: " + msg);
+            } else {
+                status.textContent = "ERROR: NO NUMBER";
+            }
+        }
+
+        setTimeout(() => {
+            updateText("");
+            status.textContent = "TEXTING: " + targetContact.name + " (SWIPE RIGHT TO SEND)";
+        }, 1500);
+    }
+
+    function getContacts() {
+        status.textContent = "LOADING CONTACTS...";
+        if (window.Android) { window.Android.vibrate(500); window.Android.requestContacts(); isContactMode = true; }
+
+        announce("Contact Search");
+    }
+
+    function displayContacts(jsonString) {
+        try { allContacts = JSON.parse(jsonString); searchQuery = ""; updateSearchDisplay(); }
+        catch (e) { updateText("Error parsing contacts."); }
+    }
+
+    function updateSearchDisplay() {
+        searchBar.style.display = "block"; searchBar.textContent = "SEARCH: " + searchQuery;
+        if (searchQuery === "") filteredContacts = allContacts;
+        else filteredContacts = allContacts.filter(c => c.name.toUpperCase().startsWith(searchQuery));
+        renderContactList(filteredContacts);
+        updateGestureUI();
+    }
+
+    function adaptSpeed(impliedT) {
+        if (impliedT < 50 || impliedT > 400) return;
+        tUnit = (tUnit * 0.9) + (impliedT * 0.1);
+        debug.textContent = "t: " + Math.round(tUnit) + "ms";
+    }
+
+    function playMorseCode(code) {
+        stopPlayback();
+        tutorialAudioLoop = true;
+        let index = 0;
+
+        function playNext() {
+            if (!tutorialAudioLoop) return;
+            if (index >= code.length) return;
+
+            if (code[index] === " ") {
+                index++;
+                let tWait = setTimeout(playNext, tUnit * 7);
+                playbackTimeouts.push(tWait);
+                return;
+            }
+
+            const d = code[index] === "." ? tUnit : tUnit * 3;
+            oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(VOLUME, audioCtx.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.frequency.setValueAtTime(600, audioCtx.currentTime);
+            oscillator.start();
+
+            keyBtn.className = "tutorial";
+
+            let t1 = setTimeout(() => {
+                if (!tutorialAudioLoop) { try { oscillator.stop(); } catch(e){} return; }
+                try { oscillator.stop(); } catch(e){}
+                keyBtn.className = "";
+                index++;
+                let t2 = setTimeout(playNext, tUnit);
+                playbackTimeouts.push(t2);
+            }, d);
+            playbackTimeouts.push(t1);
+        }
+        playNext();
+    }
+
+    keyBtn.addEventListener('mousedown', startTone);
+    keyBtn.addEventListener('mouseup', stopTone);
+    keyBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startTone(e); });
+    keyBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopTone(e); });
+</script>
+</body>
+</html>
+
