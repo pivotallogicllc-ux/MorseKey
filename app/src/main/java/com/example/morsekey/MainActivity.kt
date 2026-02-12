@@ -96,7 +96,7 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
 
     // --- DEMO MODE SWITCH ---
     // Set to TRUE for screen recording (Uses fake contacts)
-    private val IS_DEMO_MODE = false
+    private val IS_DEMO_MODE = true
 
     @JavascriptInterface
     fun speak(text: String) {
