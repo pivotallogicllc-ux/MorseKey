@@ -31,7 +31,6 @@ import org.json.JSONObject
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
-
     lateinit var webView: WebView
     private var tts: TextToSpeech? = null
 
@@ -50,22 +49,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         // WAKE LOCK (Keeps screen on)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         tts = TextToSpeech(this, this)
         webView = WebView(this)
         setContentView(webView)
-
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
-
         webView.addJavascriptInterface(ContactInterface(this, tts), "Android")
         webView.loadUrl("file:///android_asset/index.html")
-
         registerReceiver(smsReceiver, IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION))
     }
 
@@ -78,9 +72,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onDestroy() {
-        try { unregisterReceiver(smsReceiver) } catch (e: Exception) {}
-        tts?.stop()
-        tts?.shutdown()
+        try {
+            unregisterReceiver(smsReceiver)
+            tts?.stop()
+            tts?.shutdown()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         super.onDestroy()
     }
 
@@ -93,10 +91,17 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 }
 
 class ContactInterface(private val activity: MainActivity, private val tts: TextToSpeech?) {
-
-    // --- DEMO MODE SWITCH ---
+    //--- DEMO MODE SWITCH
     // Set to TRUE for screen recording (Uses fake contacts)
-    private val IS_DEMO_MODE = true
+    private val IS_DEMO_MODE = false
+
+    // --- PHASE 5: KEYBOARD SETTINGS BRIDGE ---
+    @JavascriptInterface
+    fun openKeyboardSettings() {
+        val intent = Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        activity.startActivity(intent)
+    }
 
     @JavascriptInterface
     fun speak(text: String) {
@@ -108,7 +113,6 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
         if (IS_DEMO_MODE) {
             return "Hey! This is a test message for the demo video. The app is working great!"
         }
-
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
             return ""
         }
@@ -129,7 +133,9 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
                     }
                 }
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         return "No recent messages."
     }
 
@@ -163,10 +169,6 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
 
     @JavascriptInterface
     fun makeCall(phoneNumber: String) {
-        // --- MODIFIED FOR DEMO ---
-        // We ALLOW the real call to proceed so the system dialer launches.
-        // This effectively demonstrates the CALL_PHONE permission.
-
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
             try {
                 val intent = Intent(Intent.ACTION_CALL)
@@ -182,22 +184,19 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
 
     @JavascriptInterface
     fun sendText(phoneNumber: String, messageBody: String) {
-        // We KEEP the restriction on texts to avoid spamming real networks with fake numbers.
-        // The visual feedback in the app (the "SENT" screen) is sufficient proof for video.
         if (IS_DEMO_MODE) {
             Toast.makeText(activity, "DEMO: Message Sent", Toast.LENGTH_SHORT).show()
             return
         }
-
         if (ContextCompat.checkSelfPermission(activity, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED) {
             try {
-                val smsManager: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val smsManager: SmsManager? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     activity.getSystemService(SmsManager::class.java)
                 } else {
                     @Suppress("DEPRECATION")
                     SmsManager.getDefault()
                 }
-                smsManager.sendTextMessage(phoneNumber, null, messageBody, null, null)
+                smsManager?.sendTextMessage(phoneNumber, null, messageBody, null, null)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -219,7 +218,6 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
     private fun getPhoneContacts(): String {
         if (IS_DEMO_MODE) {
             val demoContacts = JSONArray()
-
             fun addDemoContact(name: String, number: String) {
                 val contact = JSONObject()
                 contact.put("name", name)
@@ -231,9 +229,6 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
                 contact.put("numbers", numbers)
                 demoContacts.put(contact)
             }
-
-            // Note: 555-XXXX numbers are standard "fictional" numbers in the US/Canada.
-            // Calling them results in a harmless carrier message.
             addDemoContact("Alice Smith", "555-0101")
             addDemoContact("Bob Johnson", "555-0102")
             addDemoContact("Charlie Brown", "555-0103")
@@ -243,10 +238,8 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
             addDemoContact("Mom", "555-0106")
             addDemoContact("Support", "1-800-555-0199")
             addDemoContact("Work", "555-0109")
-
             return demoContacts.toString()
         }
-
         val contactsMap = LinkedHashMap<String, JSONObject>()
         try {
             val cursor: Cursor? = activity.contentResolver.query(
@@ -258,40 +251,39 @@ class ContactInterface(private val activity: MainActivity, private val tts: Text
                 while (it.moveToNext()) {
                     val name = it.getString(it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)) ?: continue
                     val number = it.getString(it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)) ?: continue
-                    val type = it.getInt(it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE))
-
+                    val type = it.getShort(it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.TYPE)).toInt()
                     if (type != ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE) continue
-
-                    val customLabel = it.getString(it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LABEL))
                     val normalizedNumber = number.replace("[^0-9+]".toRegex(), "")
                     if (number.contains("@")) continue
-
                     if (!contactsMap.containsKey(name)) {
                         val contactObj = JSONObject()
                         contactObj.put("name", name)
                         contactObj.put("numbers", JSONArray())
                         contactsMap[name] = contactObj
                     }
-
                     val label = "MOBILE"
                     val numberObj = JSONObject()
                     numberObj.put("number", number)
                     numberObj.put("label", label)
-
                     val existingNumbers = contactsMap[name]!!.getJSONArray("numbers")
                     var isDuplicate = false
                     for (i in 0 until existingNumbers.length()) {
                         val existingNum = existingNumbers.getJSONObject(i).getString("number").replace("[^0-9+]".toRegex(), "")
-                        if (existingNum == normalizedNumber) { isDuplicate = true; break }
+                        if (existingNum == normalizedNumber) {
+                            isDuplicate = true
+                            break
+                        }
                     }
                     if (!isDuplicate) existingNumbers.put(numberObj)
                 }
             }
-        } catch (e: Exception) { e.printStackTrace() }
-
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         val finalArray = JSONArray()
         contactsMap.values.forEach { finalArray.put(it) }
         return finalArray.toString()
     }
 }
+
 
